@@ -4,7 +4,9 @@
  * and throws a typed ApiError on non-2xx responses.
  */
 
-const BASE = "/api/v1";
+// In development: VITE_API_URL is undefined → BASE = "/api/v1" (Vite proxy forwards to Django :8000)
+// In production (Vercel): VITE_API_URL = "https://your-backend.onrender.com" → full absolute URL
+const BASE = `${import.meta.env.VITE_API_URL ?? ""}/api/v1`;
 
 export class ApiError extends Error {
   constructor(
