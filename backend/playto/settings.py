@@ -30,6 +30,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # serves static files in production
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     # CsrfViewMiddleware removed — this is a token-auth API; CSRF is not needed.
@@ -88,8 +89,12 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "playto.exceptions.custom_exception_handler",
 }
 
-# Allow all origins in development; tighten this in production.
-CORS_ALLOW_ALL_ORIGINS = True
+# In DEBUG mode allow all origins (dev convenience).
+# In production, only the origins listed in CORS_ALLOWED_ORIGINS env var are permitted.
+CORS_ALLOW_ALL_ORIGINS = DEBUG
+CORS_ALLOWED_ORIGINS = [
+    o for o in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",") if o
+]
 CORS_ALLOW_CREDENTIALS = True
 
 LANGUAGE_CODE = "en-us"
@@ -98,6 +103,8 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"  # collectstatic output directory
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
