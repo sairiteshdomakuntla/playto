@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #13131f;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #252540;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3a3a5c;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary-dark hover:bg-primary-light text-white font-semibold px-5 py-2.5 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply bg-transparent border border-border hover:border-primary text-slate-300 hover:text-primary font-medium px-5 py-2.5 rounded-lg transition-all duration-200;
+  }
+
+  .btn-danger {
+    @apply bg-red-600/20 hover:bg-red-600/30 text-red-400 hover:text-red-300 border border-red-600/30 font-semibold px-5 py-2.5 rounded-lg transition-all duration-200;
+  }
+
+  .btn-success {
+    @apply bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 hover:text-emerald-300 border border-emerald-600/30 font-semibold px-5 py-2.5 rounded-lg transition-all duration-200;
+  }
+
+  .input-field {
+    @apply w-full bg-surface border border-border rounded-lg px-4 py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all duration-200;
+  }
+
+  .card {
+    @apply bg-card border border-border rounded-xl p-6;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold;
+  }
+
+  .badge-draft {
+    @apply badge bg-slate-700/60 text-slate-300;
+  }
+
+  .badge-submitted {
+    @apply badge bg-blue-500/20 text-blue-400 border border-blue-500/30;
+  }
+
+  .badge-under_review {
+    @apply badge bg-amber-500/20 text-amber-400 border border-amber-500/30;
+  }
+
+  .badge-approved {
+    @apply badge bg-emerald-500/20 text-emerald-400 border border-emerald-500/30;
+  }
+
+  .badge-rejected {
+    @apply badge bg-red-500/20 text-red-400 border border-red-500/30;
+  }
+
+  .badge-more_info_requested {
+    @apply badge bg-purple-500/20 text-purple-400 border border-purple-500/30;
+  }
+
+  .badge-at_risk {
+    @apply badge bg-red-500/30 text-red-300 border border-red-500/40 animate-pulse;
+  }
+}

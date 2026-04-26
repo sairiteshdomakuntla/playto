@@ -1,0 +1,9 @@
+# Normalize line endings to LF on check-in (cross-platform consistency)
+* text=auto eol=lf
+
+# Binaries — never touch
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.pdf binary
+*.ico binary
