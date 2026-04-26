@@ -20,6 +20,11 @@ function getToken(): string | null {
   return localStorage.getItem("token");
 }
 
+// Auth endpoints that must NEVER send an Authorization header.
+// If a stale/invalid token is in localStorage, DRF's TokenAuthentication
+// will reject the request with 401 before AllowAny even runs.
+const PUBLIC_PATHS = ["/auth/login/", "/auth/register/"];
+
 async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
@@ -29,7 +34,8 @@ async function apiFetch<T>(
     ...(options.headers as Record<string, string>),
   };
 
-  if (token) {
+  const isPublic = PUBLIC_PATHS.some((p) => path.endsWith(p));
+  if (token && !isPublic) {
     headers["Authorization"] = `Token ${token}`;
   }
   // Only set Content-Type for JSON; let the browser set it for FormData.
@@ -40,6 +46,12 @@ async function apiFetch<T>(
   const res = await fetch(`${BASE}${path}`, { ...options, headers });
 
   if (!res.ok) {
+    // On 401, clear stale auth data so the user is sent back to login.
+    if (res.status === 401 && !isPublic) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("role");
+      localStorage.removeItem("username");
+    }
     let message = `HTTP ${res.status}`;
     try {
       const data = await res.json();
