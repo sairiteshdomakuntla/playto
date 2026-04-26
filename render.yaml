@@ -3,7 +3,7 @@ services:
     name: playto-backend
     runtime: python
     rootDir: backend
-    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate && cd .. && python seed.py
     startCommand: gunicorn playto.wsgi:application --bind 0.0.0.0:$PORT
     envVars:
       - key: SECRET_KEY
