@@ -3,240 +3,141 @@ import { useNavigate } from "react-router-dom";
 import { reviewerApi, ApiError } from "../api";
 import type { KYCSubmission, SubmissionListItem, ReviewerMetrics, SubmissionState } from "../types";
 
-// ---------------------------------------------------------------------------
-// Badge helpers (shared with merchant side via CSS classes)
-// ---------------------------------------------------------------------------
-
 const STATE_LABELS: Record<SubmissionState, string> = {
-  draft: "Draft",
-  submitted: "Submitted",
-  under_review: "Under Review",
-  approved: "Approved",
-  rejected: "Rejected",
-  more_info_requested: "More Info Needed",
+  draft: "Draft", submitted: "Submitted", under_review: "Under Review",
+  approved: "Approved", rejected: "Rejected", more_info_requested: "More Info",
 };
 
 function StateBadge({ state }: { state: SubmissionState }) {
   return <span className={`badge-${state}`}>{STATE_LABELS[state]}</span>;
 }
 
-function formatHours(hours: number | null): string {
-  if (hours === null) return "—";
-  if (hours < 1) return `${Math.round(hours * 60)}m`;
-  if (hours < 24) return `${hours}h`;
-  return `${(hours / 24).toFixed(1)}d`;
+function fmtHours(h: number | null): string {
+  if (h === null) return "—";
+  if (h < 1) return `${Math.round(h * 60)}m`;
+  if (h < 24) return `${h}h`;
+  return `${(h / 24).toFixed(1)}d`;
 }
 
-function timeAgo(iso: string | null): string {
+function ago(iso: string | null): string {
   if (!iso) return "—";
-  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (diff < 60) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
+  const d = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (d < 60) return "now";
+  if (d < 3600) return `${Math.floor(d / 60)}m ago`;
+  if (d < 86400) return `${Math.floor(d / 3600)}h ago`;
+  return `${Math.floor(d / 86400)}d ago`;
 }
-
-// ---------------------------------------------------------------------------
-// Main Component
-// ---------------------------------------------------------------------------
 
 export default function ReviewerDashboard() {
   const navigate = useNavigate();
   const username = localStorage.getItem("username") ?? "";
-
   const [queue, setQueue] = useState<SubmissionListItem[]>([]);
   const [metrics, setMetrics] = useState<ReviewerMetrics | null>(null);
   const [selected, setSelected] = useState<KYCSubmission | null>(null);
-  const [loadingQueue, setLoadingQueue] = useState(true);
-  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [loadingQ, setLoadingQ] = useState(true);
+  const [loadingD, setLoadingD] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
-  const [actionError, setActionError] = useState("");
-  const [actionNote, setActionNote] = useState("");
-  const [actioning, setActioning] = useState(false);
-  const [actionSuccess, setActionSuccess] = useState("");
+  const [actErr, setActErr] = useState("");
+  const [actNote, setActNote] = useState("");
+  const [acting, setActing] = useState(false);
+  const [actOk, setActOk] = useState("");
 
-  // -------------------------------------------------------------------------
-  // Data fetching
-  // -------------------------------------------------------------------------
-
-  const loadQueue = useCallback(async () => {
+  const loadQ = useCallback(async () => {
     try {
       const [q, m] = await Promise.all([reviewerApi.getQueue(), reviewerApi.getMetrics()]);
-      setQueue(q);
-      setMetrics(m);
-    } catch {
-      // non-critical
-    } finally {
-      setLoadingQueue(false);
-    }
+      setQueue(q); setMetrics(m);
+    } catch {} finally { setLoadingQ(false); }
   }, []);
 
-  useEffect(() => {
-    loadQueue();
-    // Refresh every 30 s to keep SLA flags current.
-    const id = setInterval(loadQueue, 30_000);
-    return () => clearInterval(id);
-  }, [loadQueue]);
+  useEffect(() => { loadQ(); const id = setInterval(loadQ, 30000); return () => clearInterval(id); }, [loadQ]);
 
   async function openDetail(id: number) {
-    setLoadingDetail(true);
-    setPanelOpen(true);
-    setActionError("");
-    setActionNote("");
-    setActionSuccess("");
-    try {
-      const data = await reviewerApi.getSubmission(id);
-      setSelected(data);
-    } catch {
-      setPanelOpen(false);
-    } finally {
-      setLoadingDetail(false);
-    }
+    setLoadingD(true); setPanelOpen(true); setActErr(""); setActNote(""); setActOk("");
+    try { setSelected(await reviewerApi.getSubmission(id)); } catch { setPanelOpen(false); }
+    finally { setLoadingD(false); }
   }
 
-  function closePanel() {
-    setPanelOpen(false);
-    setSelected(null);
-  }
-
-  // -------------------------------------------------------------------------
-  // State transitions
-  // -------------------------------------------------------------------------
-
-  async function performAction(newState: string) {
+  async function doAction(newState: string) {
     if (!selected) return;
-    setActioning(true);
-    setActionError("");
+    setActing(true); setActErr("");
     try {
-      const updated = await reviewerApi.transition(selected.id, newState, actionNote || undefined);
-      setSelected(updated);
-      setActionSuccess(`Submission moved to "${STATE_LABELS[newState as SubmissionState]}".`);
-      setActionNote("");
-      loadQueue(); // refresh the queue
-    } catch (err) {
-      setActionError(err instanceof ApiError ? err.message : "Action failed.");
-    } finally {
-      setActioning(false);
-    }
+      const u = await reviewerApi.transition(selected.id, newState, actNote || undefined);
+      setSelected(u); setActOk(`Moved to "${STATE_LABELS[newState as SubmissionState]}".`); setActNote(""); loadQ();
+    } catch (e) { setActErr(e instanceof ApiError ? e.message : "Failed."); }
+    finally { setActing(false); }
   }
 
-  function logout() {
-    localStorage.clear();
-    navigate("/login", { replace: true });
-  }
-
-  // -------------------------------------------------------------------------
-  // Render
-  // -------------------------------------------------------------------------
+  function logout() { localStorage.clear(); navigate("/login", { replace: true }); }
 
   return (
-    <div className="min-h-screen bg-[#0c0c14]">
-      {/* Navbar */}
-      <header className="border-b border-border bg-card/60 backdrop-blur-md sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-indigo-700 flex items-center justify-center">
-              <svg viewBox="0 0 24 24" className="w-4 h-4 text-white fill-current">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" />
+    <div className="min-h-screen bg-[#09090b]">
+      {/* Nav */}
+      <header className="border-b border-zinc-800/80 bg-zinc-900/40 backdrop-blur-xl sticky top-0 z-20">
+        <div className="max-w-6xl mx-auto px-5 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
+              <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
               </svg>
             </div>
-            <span className="font-bold text-white text-sm">Playto Pay</span>
-            <span className="text-slate-600 text-sm hidden sm:block">/ Reviewer Dashboard</span>
+            <span className="font-semibold text-white text-[14px] tracking-[-0.01em]">Playto Pay</span>
+            <span className="text-zinc-600 text-[13px] hidden sm:block">/ Reviews</span>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-slate-400 text-sm hidden sm:block">@{username}</span>
-            <button onClick={logout} className="text-slate-500 hover:text-slate-300 text-sm transition-colors">
-              Sign out
-            </button>
+          <div className="flex items-center gap-4">
+            <span className="text-zinc-500 text-[13px] hidden sm:block">@{username}</span>
+            <button onClick={logout} className="text-zinc-600 hover:text-zinc-300 text-[13px] transition-colors">Sign out</button>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Page title */}
+      <div className="max-w-6xl mx-auto px-5 py-10">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-white">Review Queue</h1>
-          <p className="text-slate-400 text-sm mt-1">
-            Submissions are ordered oldest-first. Flagged submissions have been waiting &gt;24 hours.
-          </p>
+          <h1 className="text-[22px] font-semibold text-white tracking-[-0.02em]">Review Queue</h1>
+          <p className="text-zinc-500 text-[13px] mt-1">Oldest first. Flagged submissions have been waiting &gt;24 hours.</p>
         </div>
 
         {/* Metrics */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-          <MetricCard
-            label="In Queue"
-            value={metrics?.queue_size ?? "—"}
-            icon="📥"
-            color="blue"
-          />
-          <MetricCard
-            label="Avg. Time in Queue"
-            value={formatHours(metrics?.avg_time_in_queue_hours ?? null)}
-            icon="⏱"
-            color="amber"
-          />
-          <MetricCard
-            label="Approval Rate (7d)"
-            value={metrics?.approval_rate_7d !== null && metrics?.approval_rate_7d !== undefined
-              ? `${metrics.approval_rate_7d}%`
-              : "—"}
-            sub={metrics ? `${metrics.approved_7d} of ${metrics.total_decided_7d} decided` : ""}
-            icon="✅"
-            color="green"
-          />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
+          <Metric label="In Queue" value={metrics?.queue_size ?? "—"} accent="violet" />
+          <Metric label="Avg. Wait Time" value={fmtHours(metrics?.avg_time_in_queue_hours ?? null)} accent="amber" />
+          <Metric label="Approval Rate (7d)" value={metrics?.approval_rate_7d != null ? `${metrics.approval_rate_7d}%` : "—"} sub={metrics ? `${metrics.approved_7d}/${metrics.total_decided_7d} decided` : ""} accent="emerald" />
         </div>
 
-        {/* Queue table */}
-        {loadingQueue ? (
-          <div className="text-slate-400 animate-pulse text-sm">Loading queue…</div>
+        {/* Queue */}
+        {loadingQ ? (
+          <div className="text-zinc-500 text-sm animate-pulse">Loading…</div>
         ) : queue.length === 0 ? (
-          <div className="card text-center py-16">
-            <div className="text-4xl mb-3">🎉</div>
-            <p className="text-slate-300 font-medium">Queue is empty</p>
-            <p className="text-slate-500 text-sm mt-1">No submissions currently awaiting review.</p>
+          <div className="card text-center py-20">
+            <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-4 text-emerald-400 text-lg">✓</div>
+            <p className="text-zinc-300 font-medium">Queue is empty</p>
+            <p className="text-zinc-600 text-[13px] mt-1">No submissions awaiting review.</p>
           </div>
         ) : (
-          <div className="card p-0 overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="bg-card border border-border rounded-2xl overflow-hidden">
+            <table className="w-full text-[13px]">
               <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left px-5 py-3.5 text-slate-400 font-medium">Merchant</th>
-                  <th className="text-left px-5 py-3.5 text-slate-400 font-medium hidden md:table-cell">Business</th>
-                  <th className="text-left px-5 py-3.5 text-slate-400 font-medium">Status</th>
-                  <th className="text-left px-5 py-3.5 text-slate-400 font-medium hidden sm:table-cell">Submitted</th>
-                  <th className="text-left px-5 py-3.5 text-slate-400 font-medium hidden lg:table-cell">Docs</th>
-                  <th className="px-5 py-3.5"></th>
+                <tr className="border-b border-zinc-800/80">
+                  <th className="text-left px-5 py-3 text-zinc-500 font-medium text-[12px] uppercase tracking-wider">Merchant</th>
+                  <th className="text-left px-5 py-3 text-zinc-500 font-medium text-[12px] uppercase tracking-wider hidden md:table-cell">Business</th>
+                  <th className="text-left px-5 py-3 text-zinc-500 font-medium text-[12px] uppercase tracking-wider">Status</th>
+                  <th className="text-left px-5 py-3 text-zinc-500 font-medium text-[12px] uppercase tracking-wider hidden sm:table-cell">Submitted</th>
+                  <th className="text-left px-5 py-3 text-zinc-500 font-medium text-[12px] uppercase tracking-wider hidden lg:table-cell">Docs</th>
+                  <th className="px-5 py-3"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
-                {queue.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="hover:bg-white/3 transition-colors cursor-pointer group"
-                    onClick={() => openDetail(item.id)}
-                  >
+              <tbody>
+                {queue.map(item => (
+                  <tr key={item.id} onClick={() => openDetail(item.id)} className="border-b border-zinc-800/40 last:border-0 hover:bg-zinc-800/30 transition-colors cursor-pointer group">
                     <td className="px-5 py-4">
-                      <div className="font-medium text-slate-100">{item.merchant_name}</div>
-                      {item.at_risk && (
-                        <span className="badge-at_risk mt-1 text-xs">⚠ SLA at risk</span>
-                      )}
+                      <div className="font-medium text-zinc-200">{item.merchant_name}</div>
+                      {item.at_risk && <span className="badge-at_risk mt-1.5 text-[10px]">⚠ SLA breach</span>}
                     </td>
-                    <td className="px-5 py-4 hidden md:table-cell text-slate-400">
-                      {item.business_name}
-                    </td>
-                    <td className="px-5 py-4">
-                      <StateBadge state={item.state} />
-                    </td>
-                    <td className="px-5 py-4 text-slate-500 hidden sm:table-cell">
-                      {timeAgo(item.submitted_at)}
-                    </td>
-                    <td className="px-5 py-4 text-slate-500 hidden lg:table-cell">
-                      {item.document_count}/3
-                    </td>
+                    <td className="px-5 py-4 hidden md:table-cell text-zinc-500">{item.business_name}</td>
+                    <td className="px-5 py-4"><StateBadge state={item.state} /></td>
+                    <td className="px-5 py-4 text-zinc-500 hidden sm:table-cell">{ago(item.submitted_at)}</td>
+                    <td className="px-5 py-4 text-zinc-500 hidden lg:table-cell font-mono">{item.document_count}/3</td>
                     <td className="px-5 py-4 text-right">
-                      <span className="text-primary opacity-0 group-hover:opacity-100 transition-opacity text-xs">
-                        Review →
-                      </span>
+                      <span className="text-primary-light opacity-0 group-hover:opacity-100 transition-opacity text-[12px]">Review →</span>
                     </td>
                   </tr>
                 ))}
@@ -246,25 +147,12 @@ export default function ReviewerDashboard() {
         )}
       </div>
 
-      {/* Detail panel overlay */}
+      {/* Detail Panel */}
       {panelOpen && (
         <>
-          <div
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30"
-            onClick={closePanel}
-          />
-          <aside className="fixed right-0 top-0 h-full w-full max-w-2xl bg-card border-l border-border z-40 overflow-y-auto animate-slide-in">
-            <DetailPanel
-              submission={selected}
-              loading={loadingDetail}
-              onClose={closePanel}
-              onAction={performAction}
-              actioning={actioning}
-              actionNote={actionNote}
-              setActionNote={setActionNote}
-              actionError={actionError}
-              actionSuccess={actionSuccess}
-            />
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 animate-fade-in" onClick={() => { setPanelOpen(false); setSelected(null); }} />
+          <aside className="fixed right-0 top-0 h-full w-full max-w-xl bg-[#111113] border-l border-zinc-800 z-40 overflow-y-auto animate-slide-in shadow-2xl shadow-black/40">
+            <Panel sub={selected} loading={loadingD} onClose={() => { setPanelOpen(false); setSelected(null); }} onAction={doAction} acting={acting} note={actNote} setNote={setActNote} err={actErr} ok={actOk} />
           </aside>
         </>
       )}
@@ -272,152 +160,87 @@ export default function ReviewerDashboard() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Metric card
-// ---------------------------------------------------------------------------
+/* ── Metric Card ─────────────────────────────────────────────────────────── */
 
-function MetricCard({
-  label, value, sub, icon, color,
-}: {
-  label: string;
-  value: string | number;
-  sub?: string;
-  icon: string;
-  color: "blue" | "amber" | "green";
-}) {
-  const colorMap = {
-    blue: "from-blue-500/20 to-blue-600/10 border-blue-500/20 text-blue-400",
-    amber: "from-amber-500/20 to-amber-600/10 border-amber-500/20 text-amber-400",
-    green: "from-emerald-500/20 to-emerald-600/10 border-emerald-500/20 text-emerald-400",
+function Metric({ label, value, sub, accent }: { label: string; value: string | number; sub?: string; accent: "violet" | "amber" | "emerald" }) {
+  const colors = {
+    violet: "border-violet-500/15 bg-violet-500/[0.04]",
+    amber: "border-amber-500/15 bg-amber-500/[0.04]",
+    emerald: "border-emerald-500/15 bg-emerald-500/[0.04]",
   };
   return (
-    <div className={`rounded-xl border bg-gradient-to-br p-5 ${colorMap[color]}`}>
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-slate-400 text-sm font-medium">{label}</span>
-        <span className="text-xl">{icon}</span>
-      </div>
-      <div className="text-3xl font-bold text-white">{value}</div>
-      {sub && <p className="text-xs text-slate-500 mt-1">{sub}</p>}
+    <div className={`rounded-xl border p-5 ${colors[accent]}`}>
+      <p className="text-zinc-500 text-[12px] font-medium uppercase tracking-wider mb-2">{label}</p>
+      <p className="text-2xl font-bold text-white tracking-tight">{value}</p>
+      {sub && <p className="text-[11px] text-zinc-600 mt-1">{sub}</p>}
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Submission detail panel
-// ---------------------------------------------------------------------------
+/* ── Detail Panel ────────────────────────────────────────────────────────── */
 
-function DetailPanel({
-  submission, loading, onClose, onAction, actioning, actionNote, setActionNote,
-  actionError, actionSuccess,
-}: {
-  submission: KYCSubmission | null;
-  loading: boolean;
-  onClose: () => void;
-  onAction: (state: string) => void;
-  actioning: boolean;
-  actionNote: string;
-  setActionNote: (v: string) => void;
-  actionError: string;
-  actionSuccess: string;
+function Panel({ sub, loading, onClose, onAction, acting, note, setNote, err, ok }: {
+  sub: KYCSubmission | null; loading: boolean; onClose: () => void; onAction: (s: string) => void;
+  acting: boolean; note: string; setNote: (v: string) => void; err: string; ok: string;
 }) {
-  if (loading) {
-    return (
-      <div className="p-8 text-slate-400 animate-pulse">Loading submission…</div>
-    );
-  }
-  if (!submission) return null;
-
-  const p = submission.personal_details;
-  const b = submission.business_details;
+  if (loading) return <div className="p-8 text-zinc-500 text-sm animate-pulse">Loading…</div>;
+  if (!sub) return null;
+  const p = sub.personal_details, b = sub.business_details;
+  const canAct = sub.state === "submitted" || sub.state === "under_review";
 
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between p-6 border-b border-border sticky top-0 bg-card z-10">
+      <div className="flex items-center justify-between p-6 border-b border-zinc-800 bg-[#111113] sticky top-0 z-10">
         <div>
-          <h2 className="text-lg font-bold text-white">
-            {p.name ?? submission.merchant_username}
-          </h2>
-          <p className="text-slate-400 text-sm">{b.business_name ?? "—"}</p>
+          <h2 className="text-[16px] font-semibold text-white">{p.name ?? sub.merchant_username}</h2>
+          <p className="text-zinc-500 text-[13px]">{b.business_name ?? "—"}</p>
         </div>
         <div className="flex items-center gap-3">
-          <StateBadge state={submission.state} />
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-white transition-colors text-xl leading-none"
-            aria-label="Close"
-          >
-            ×
-          </button>
+          <StateBadge state={sub.state} />
+          <button onClick={onClose} className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white transition-colors" aria-label="Close">✕</button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
-        {/* Action success banner */}
-        {actionSuccess && (
-          <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm animate-fade-in">
-            {actionSuccess}
-          </div>
-        )}
+      <div className="flex-1 overflow-y-auto p-6 space-y-5">
+        {ok && <div className="p-3 rounded-lg bg-emerald-500/8 border border-emerald-500/15 text-emerald-400 text-[13px] animate-fade-in">{ok}</div>}
 
-        {/* Timeline info */}
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <InfoItem label="Submitted" value={submission.submitted_at ? timeAgo(submission.submitted_at) : "Not submitted"} />
-          <InfoItem label="Last Update" value={timeAgo(submission.last_state_change_at)} />
-          <InfoItem label="Reviewer" value={submission.reviewer_username ?? "Unassigned"} />
-          <InfoItem label="Submission ID" value={`#${submission.id}`} />
+        {/* Meta */}
+        <div className="grid grid-cols-2 gap-3">
+          <Info label="Submitted" value={sub.submitted_at ? ago(sub.submitted_at) : "—"} />
+          <Info label="Last Update" value={ago(sub.last_state_change_at)} />
+          <Info label="Reviewer" value={sub.reviewer_username ?? "Unassigned"} />
+          <Info label="ID" value={`#${sub.id}`} mono />
         </div>
 
-        {submission.reviewer_note && (
-          <div className="p-4 bg-surface rounded-lg border border-border">
-            <p className="text-xs text-slate-400 font-medium mb-1">Reviewer Note</p>
-            <p className="text-slate-200 text-sm">{submission.reviewer_note}</p>
+        {sub.reviewer_note && (
+          <div className="p-4 bg-zinc-900 rounded-xl border border-zinc-800">
+            <p className="text-[11px] text-zinc-500 font-medium uppercase tracking-wider mb-1.5">Previous Note</p>
+            <p className="text-zinc-300 text-[13px]">{sub.reviewer_note}</p>
           </div>
         )}
 
-        {/* Personal details */}
+        {/* Sections */}
         <Section title="Personal Details">
-          <InfoItem label="Full Name" value={p.name ?? "—"} />
-          <InfoItem label="Email" value={p.email ?? "—"} />
-          <InfoItem label="Phone" value={p.phone ?? "—"} />
+          <Info label="Full Name" value={p.name ?? "—"} /><Info label="Email" value={p.email ?? "—"} /><Info label="Phone" value={p.phone ?? "—"} />
         </Section>
-
-        {/* Business details */}
         <Section title="Business Details">
-          <InfoItem label="Business Name" value={b.business_name ?? "—"} />
-          <InfoItem label="Business Type" value={b.business_type ?? "—"} />
-          <InfoItem label="Monthly Volume" value={b.monthly_volume !== undefined ? `$${Number(b.monthly_volume).toLocaleString()}` : "—"} />
+          <Info label="Business" value={b.business_name ?? "—"} /><Info label="Type" value={b.business_type ?? "—"} /><Info label="Volume" value={b.monthly_volume != null ? `$${Number(b.monthly_volume).toLocaleString()}` : "—"} />
         </Section>
 
         {/* Documents */}
         <div>
-          <h3 className="text-sm font-semibold text-slate-300 mb-3">Documents</h3>
+          <h3 className="text-[12px] font-semibold text-zinc-500 uppercase tracking-wider mb-3">Documents</h3>
           <div className="space-y-2">
-            {(["pan", "aadhaar", "bank_statement"] as const).map((type) => {
-              const doc = submission.documents.find((d) => d.doc_type === type);
+            {(["pan","aadhaar","bank_statement"] as const).map(t => {
+              const d = sub.documents.find(x => x.doc_type === t);
               return (
-                <div key={type} className="flex items-center justify-between p-3 bg-surface rounded-lg border border-border">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-sm ${doc ? "text-emerald-400" : "text-slate-600"}`}>
-                      {doc ? "✓" : "○"}
-                    </span>
-                    <span className="text-sm text-slate-300">
-                      {type === "pan" ? "PAN Card" : type === "aadhaar" ? "Aadhaar Card" : "Bank Statement"}
-                    </span>
+                <div key={t} className="flex items-center justify-between p-3 bg-zinc-900 rounded-lg border border-zinc-800">
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${d ? "bg-emerald-500/15 text-emerald-400" : "bg-zinc-800 text-zinc-600"}`}>{d ? "✓" : "○"}</div>
+                    <span className="text-[13px] text-zinc-300">{t === "pan" ? "PAN Card" : t === "aadhaar" ? "Aadhaar Card" : "Bank Statement"}</span>
                   </div>
-                  {doc?.file_url ? (
-                    <a
-                      href={doc.file_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-primary hover:text-primary-light transition-colors"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      View ↗
-                    </a>
-                  ) : (
-                    <span className="text-xs text-slate-600">Not uploaded</span>
-                  )}
+                  {d?.file_url ? <a href={d.file_url} target="_blank" rel="noopener noreferrer" className="text-[12px] text-primary-light hover:text-white transition-colors" onClick={e => e.stopPropagation()}>View ↗</a> : <span className="text-[12px] text-zinc-700">Missing</span>}
                 </div>
               );
             })}
@@ -425,126 +248,37 @@ function DetailPanel({
         </div>
 
         {/* Actions */}
-        {(submission.state === "submitted" || submission.state === "under_review") && (
-          <ActionPanel
-            submission={submission}
-            onAction={onAction}
-            actioning={actioning}
-            actionNote={actionNote}
-            setActionNote={setActionNote}
-            actionError={actionError}
-          />
+        {canAct && (
+          <div className="border border-zinc-800 rounded-xl p-5 bg-zinc-900/50 space-y-4">
+            <h3 className="text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Actions</h3>
+            {err && <div className="p-3 rounded-lg bg-red-500/8 border border-red-500/15 text-red-400 text-[13px]">{err}</div>}
+            {sub.state === "submitted" && (
+              <button onClick={() => onAction("under_review")} disabled={acting} className="btn-outline w-full">{acting ? "Processing…" : "▷ Start Review"}</button>
+            )}
+            {sub.state === "under_review" && (
+              <>
+                <div>
+                  <label className="block text-[12px] font-medium text-zinc-500 mb-2">Note <span className="text-zinc-700">(required for reject/more info)</span></label>
+                  <textarea value={note} onChange={e => setNote(e.target.value)} rows={3} className="input-field resize-none text-[13px]" placeholder="Visible to the merchant…" />
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <button onClick={() => onAction("approved")} disabled={acting} className="btn-success text-[13px]">✓ Approve</button>
+                  <button onClick={() => { if (!note.trim()) { alert("Add a reason."); return; } onAction("rejected"); }} disabled={acting} className="btn-danger text-[13px]">✗ Reject</button>
+                  <button onClick={() => { if (!note.trim()) { alert("Specify what's needed."); return; } onAction("more_info_requested"); }} disabled={acting} className="btn-outline text-[13px] text-violet-400 border-violet-500/20 hover:bg-violet-500/10">? More Info</button>
+                </div>
+              </>
+            )}
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-function ActionPanel({
-  submission, onAction, actioning, actionNote, setActionNote, actionError,
-}: {
-  submission: KYCSubmission;
-  onAction: (state: string) => void;
-  actioning: boolean;
-  actionNote: string;
-  setActionNote: (v: string) => void;
-  actionError: string;
-}) {
-  const isSubmitted = submission.state === "submitted";
-  const isUnderReview = submission.state === "under_review";
-
-  return (
-    <div className="border border-border rounded-xl p-5 bg-surface space-y-4">
-      <h3 className="text-sm font-semibold text-slate-300">Actions</h3>
-
-      {actionError && (
-        <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-          {actionError}
-        </div>
-      )}
-
-      {isSubmitted && (
-        <button
-          onClick={() => onAction("under_review")}
-          disabled={actioning}
-          className="w-full py-2.5 rounded-lg text-sm font-semibold bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 transition-all disabled:opacity-50"
-        >
-          {actioning ? "Processing…" : "▷ Start Review"}
-        </button>
-      )}
-
-      {isUnderReview && (
-        <>
-          <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">
-              Note / Reason <span className="text-slate-600">(required for Reject / More Info)</span>
-            </label>
-            <textarea
-              value={actionNote}
-              onChange={e => setActionNote(e.target.value)}
-              rows={3}
-              className="input-field resize-none text-sm"
-              placeholder="Optional note visible to the merchant…"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <button
-              onClick={() => onAction("approved")}
-              disabled={actioning}
-              className="btn-success text-sm"
-            >
-              ✓ Approve
-            </button>
-            <button
-              onClick={() => {
-                if (!actionNote.trim()) {
-                  alert("Please add a reason before rejecting.");
-                  return;
-                }
-                onAction("rejected");
-              }}
-              disabled={actioning}
-              className="btn-danger text-sm"
-            >
-              ✗ Reject
-            </button>
-            <button
-              onClick={() => {
-                if (!actionNote.trim()) {
-                  alert("Please specify what additional information is needed.");
-                  return;
-                }
-                onAction("more_info_requested");
-              }}
-              disabled={actioning}
-              className="py-2.5 rounded-lg text-sm font-semibold bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/30 transition-all disabled:opacity-50"
-            >
-              📋 More Info
-            </button>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <h3 className="text-sm font-semibold text-slate-300 mb-3">{title}</h3>
-      <div className="bg-surface rounded-lg border border-border p-4 space-y-3">
-        {children}
-      </div>
-    </div>
-  );
+  return (<div><h3 className="text-[12px] font-semibold text-zinc-500 uppercase tracking-wider mb-3">{title}</h3><div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4 space-y-3">{children}</div></div>);
 }
 
-function InfoItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-xs text-slate-500 mb-0.5">{label}</p>
-      <p className="text-sm text-slate-200">{value}</p>
-    </div>
-  );
+function Info({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (<div><p className="text-[11px] text-zinc-600 mb-0.5">{label}</p><p className={`text-[13px] text-zinc-200 ${mono ? "font-mono" : ""}`}>{value}</p></div>);
 }

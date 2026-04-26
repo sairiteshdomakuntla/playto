@@ -34,37 +34,36 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0c0c14] flex items-center justify-center p-4">
-      {/* Background glow */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-primary/5 rounded-full blur-3xl" />
-      </div>
+    <div className="min-h-screen bg-[#09090b] flex items-center justify-center px-4 py-12 relative overflow-hidden">
+      {/* Background gradient orb */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[500px] bg-primary/[0.04] rounded-full blur-[120px] pointer-events-none" />
 
-      <div className="w-full max-w-md animate-fade-in">
+      <div className="w-full max-w-[400px] relative z-10 animate-fade-up">
         {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 mb-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-indigo-700 flex items-center justify-center">
-              <svg viewBox="0 0 24 24" className="w-5 h-5 text-white fill-current">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" />
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center gap-2.5 mb-4">
+            <div className="w-8 h-8 rounded-[10px] bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
+              <svg viewBox="0 0 24 24" className="w-4 h-4 text-white" fill="currentColor">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
-            <span className="text-xl font-bold text-white tracking-tight">Playto Pay</span>
+            <span className="text-[17px] font-semibold text-white tracking-[-0.02em]">Playto Pay</span>
           </div>
-          <p className="text-slate-400 text-sm">KYC Onboarding Portal</p>
+          <p className="text-zinc-500 text-[13px]">KYC Onboarding Portal</p>
         </div>
 
-        <div className="card">
+        {/* Card */}
+        <div className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800/80 rounded-2xl p-7 shadow-2xl shadow-black/20">
           {/* Tab switcher */}
-          <div className="flex gap-1 p-1 bg-surface rounded-lg mb-6">
+          <div className="flex p-0.5 bg-zinc-800/50 rounded-lg mb-7">
             {(["login", "register"] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => { setTab(t); setError(""); }}
-                className={`flex-1 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                className={`flex-1 py-2 rounded-md text-[13px] font-medium transition-all duration-200 ${
                   tab === t
-                    ? "bg-primary-dark text-white shadow-sm"
-                    : "text-slate-400 hover:text-slate-200"
+                    ? "bg-zinc-700/80 text-white shadow-sm"
+                    : "text-zinc-500 hover:text-zinc-300"
                 }`}
               >
                 {t === "login" ? "Sign In" : "Create Account"}
@@ -72,9 +71,9 @@ export default function Login() {
             ))}
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1.5">
+              <label className="block text-[13px] font-medium text-zinc-400 mb-2">
                 Username
               </label>
               <input
@@ -91,8 +90,8 @@ export default function Login() {
 
             {tab === "register" && (
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1.5">
-                  Email <span className="text-slate-500">(optional)</span>
+                <label className="block text-[13px] font-medium text-zinc-400 mb-2">
+                  Email <span className="text-zinc-600">(optional)</span>
                 </label>
                 <input
                   id="email"
@@ -107,7 +106,7 @@ export default function Login() {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1.5">
+              <label className="block text-[13px] font-medium text-zinc-400 mb-2">
                 Password
               </label>
               <input
@@ -123,7 +122,10 @@ export default function Login() {
             </div>
 
             {error && (
-              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/8 border border-red-500/15 text-[13px] text-red-400">
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                </svg>
                 {error}
               </div>
             )}
@@ -131,35 +133,30 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full mt-2 flex items-center justify-center gap-2"
+              className="btn-primary w-full mt-1"
             >
-              {loading ? (
-                <>
-                  <Spinner />
-                  {tab === "login" ? "Signing in…" : "Creating account…"}
-                </>
-              ) : tab === "login" ? (
-                "Sign In"
-              ) : (
-                "Create Merchant Account"
-              )}
+              {loading && <Spinner />}
+              {loading
+                ? tab === "login" ? "Signing in…" : "Creating account…"
+                : tab === "login" ? "Sign In" : "Create Merchant Account"
+              }
             </button>
           </form>
 
           {tab === "login" && (
-            <p className="text-center text-slate-500 text-xs mt-5">
+            <p className="text-center text-zinc-600 text-[11px] mt-6">
               Reviewer accounts are created by administrators.
             </p>
           )}
         </div>
 
-        {/* Seed credentials hint */}
-        <div className="mt-4 p-4 rounded-xl bg-card border border-border text-xs text-slate-500">
-          <p className="font-medium text-slate-400 mb-2">Test credentials (seeded)</p>
-          <div className="space-y-1 font-mono">
-            <p><span className="text-primary">merchant1</span> / merchant1 — draft state</p>
-            <p><span className="text-primary">merchant2</span> / merchant2 — under review</p>
-            <p><span className="text-amber-400">reviewer1</span> / reviewer1 — reviewer</p>
+        {/* Seed credentials */}
+        <div className="mt-5 p-4 rounded-xl bg-zinc-900/30 border border-zinc-800/50 text-[12px] text-zinc-500">
+          <p className="font-medium text-zinc-400 mb-2.5">Test credentials</p>
+          <div className="space-y-1.5 font-mono text-[11px]">
+            <p><span className="text-primary-light">merchant1</span> <span className="text-zinc-700">/</span> merchant1 <span className="text-zinc-700">—</span> <span className="text-zinc-600">draft</span></p>
+            <p><span className="text-primary-light">merchant2</span> <span className="text-zinc-700">/</span> merchant2 <span className="text-zinc-700">—</span> <span className="text-zinc-600">under review</span></p>
+            <p><span className="text-amber-500">reviewer1</span> <span className="text-zinc-700">/</span> reviewer1 <span className="text-zinc-700">—</span> <span className="text-zinc-600">reviewer</span></p>
           </div>
         </div>
       </div>
@@ -170,8 +167,8 @@ export default function Login() {
 function Spinner() {
   return (
     <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+      <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
     </svg>
   );
 }
