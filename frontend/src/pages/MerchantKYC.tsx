@@ -253,7 +253,7 @@ function DocStep({ sub, onBack, onNext }: { sub: KYCSubmission; onBack: ()=>void
               </label>
               {has(t) && <span className="text-[11px] text-emerald-400 font-medium">✓ Uploaded</span>}
             </div>
-            <DocumentUpload docType={t} onUploadSuccess={() => { setKey(k => k+1); onNext().catch(() => {}); }} />
+            <DocumentUpload docType={t} onUploadSuccess={() => { setKey(k => k+1); void Promise.resolve(onNext()); }} />
           </div>
         ))}
       </div>
